@@ -145,12 +145,12 @@ class ByteBufferMessageSetTest extends BaseMessageSetTestCases {
     val compressedMessages = new ByteBufferMessageSet(compressionCodec = DefaultCompressionCodec,
                                                       messages = messages.map(_.message).toBuffer:_*)
     // check uncompressed offsets 
-    checkOffsets(messages, 0)
-    var offset = 1234567
+    checkOffsets(messages, -1)
+    val offset = 1234567
     checkOffsets(messages.validateMessagesAndAssignOffsets(new AtomicLong(offset), NoCompressionCodec, NoCompressionCodec), offset)
 
     // check compressed messages
-    checkOffsets(compressedMessages, 0)
+    checkOffsets(compressedMessages, -1)
     checkOffsets(compressedMessages.validateMessagesAndAssignOffsets(new AtomicLong(offset), DefaultCompressionCodec, DefaultCompressionCodec), offset)
   }
   
@@ -159,7 +159,7 @@ class ByteBufferMessageSetTest extends BaseMessageSetTestCases {
     var offset = baseOffset
     for(entry <- messages) {
       assertEquals("Unexpected offset in message set iterator", offset, entry.offset)
-      offset += 1
+      if (offset != -1) offset += 1
     }
   }
 

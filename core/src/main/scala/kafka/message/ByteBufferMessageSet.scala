@@ -27,13 +27,13 @@ import java.util.concurrent.atomic.AtomicLong
 
 object ByteBufferMessageSet {
 
-  private def create(offsetCounter: AtomicLong, compressionCodec: CompressionCodec, messages: Message*): ByteBuffer = {
+  private def create(offsetCounter: () => Long, compressionCodec: CompressionCodec, messages: Message*): ByteBuffer = {
     if(messages.size == 0) {
       MessageSet.Empty.buffer
     } else if(compressionCodec == NoCompressionCodec) {
       val buffer = ByteBuffer.allocate(MessageSet.messageSetSize(messages))
       for(message <- messages)
-        writeMessage(buffer, message, offsetCounter.getAndIncrement)
+        writeMessage(buffer, message, offsetCounter())
       buffer.rewind()
       buffer
     } else {
@@ -43,7 +43,7 @@ object ByteBufferMessageSet {
         val output = new DataOutputStream(CompressionFactory(compressionCodec, outputStream))
         try {
           for (message <- messages) {
-            offset = offsetCounter.getAndIncrement
+            offset = offsetCounter()
             output.writeLong(offset)
             output.writeInt(message.size)
             output.write(message.buffer.array, message.buffer.arrayOffset, message.buffer.limit)
@@ -125,15 +125,15 @@ class ByteBufferMessageSet(val buffer: ByteBuffer) extends MessageSet with Loggi
   private var shallowValidByteCount = -1
 
   def this(compressionCodec: CompressionCodec, messages: Message*) {
-    this(ByteBufferMessageSet.create(new AtomicLong(0), compressionCodec, messages:_*))
+    this(ByteBufferMessageSet.create(() => -1, compressionCodec, messages:_*))
   }
 
   def this(compressionCodec: CompressionCodec, offsetCounter: AtomicLong, messages: Message*) {
-    this(ByteBufferMessageSet.create(offsetCounter, compressionCodec, messages:_*))
+    this(ByteBufferMessageSet.create(() => offsetCounter.getAndIncrement(), compressionCodec, messages:_*))
   }
 
   def this(messages: Message*) {
-    this(NoCompressionCodec, new AtomicLong(0), messages: _*)
+    this(NoCompressionCodec, messages: _*)
   }
 
   def getBuffer = buffer
