@@ -81,7 +81,9 @@ public enum Errors {
     COMMITTING_PARTITIONS_NOT_ASSIGNED(27,
             new ApiException("Some of the committing partitions are not assigned the committer")),
     INVALID_COMMIT_OFFSET_SIZE(28,
-            new ApiException("The committing offset data size is not valid"));
+            new ApiException("The committing offset data size is not valid")),
+    EXPECTED_OFFSET_MISMATCH(29,
+            new ExpectedOffsetMismatchException("Expected offset does not match assigned offset."));
 
     private static Map<Class<?>, Errors> classToError = new HashMap<Class<?>, Errors>();
     private static Map<Short, Errors> codeToError = new HashMap<Short, Errors>();
