@@ -14,7 +14,7 @@ package org.apache.kafka.clients.producer;
 
 /**
  * A key/value pair to be sent to Kafka. This consists of a topic name to which the record is being sent, an optional
- * partition number, and an optional key and value.
+ * partition number, an optional offset, and an optional key and value.
  * <p>
  * If a valid partition number is specified that partition will be used when sending the record. If no partition is
  * specified but a key is present a partition will be chosen using a hash of the key. If neither key nor partition is
@@ -24,8 +24,28 @@ public final class ProducerRecord<K, V> {
 
     private final String topic;
     private final Integer partition;
+    private final long offset;
     private final K key;
     private final V value;
+
+    /**
+     * Creates a record to be sent to a specified topic and partition
+     * 
+     * @param topic The topic the record will be appended to
+     * @param partition The partition to which the record should be sent
+     * @param offset The expected offset for the record, or -1 to leave unspecified
+     * @param key The key that will be included in the record
+     * @param value The record contents
+     */
+    public ProducerRecord(String topic, Integer partition, long offset, K key, V value) {
+        if (topic == null)
+            throw new IllegalArgumentException("Topic cannot be null");
+        this.topic = topic;
+        this.partition = partition;
+        this.offset = offset;
+        this.key = key;
+        this.value = value;
+    }
 
     /**
      * Creates a record to be sent to a specified topic and partition
@@ -36,12 +56,7 @@ public final class ProducerRecord<K, V> {
      * @param value The record contents
      */
     public ProducerRecord(String topic, Integer partition, K key, V value) {
-        if (topic == null)
-            throw new IllegalArgumentException("Topic cannot be null");
-        this.topic = topic;
-        this.partition = partition;
-        this.key = key;
-        this.value = value;
+        this(topic, partition, -1, key, value);
     }
 
     /**
@@ -93,11 +108,18 @@ public final class ProducerRecord<K, V> {
         return partition;
     }
 
+    /**
+     * The expected offset for this record (or -1 if no expected offset
+     */
+    public long offset() {
+        return offset;
+    }
+
     @Override
     public String toString() {
         String key = this.key == null ? "null" : this.key.toString();
         String value = this.value == null ? "null" : this.value.toString();
-        return "ProducerRecord(topic=" + topic + ", partition=" + partition + ", key=" + key + ", value=" + value;
+        return "ProducerRecord(topic=" + topic + ", partition=" + partition + ", offset=" + offset + ", key=" + key + ", value=" + value;
     }
 
     @Override
@@ -115,6 +137,8 @@ public final class ProducerRecord<K, V> {
             return false;
         else if (topic != null ? !topic.equals(that.topic) : that.topic != null) 
             return false;
+        else if (offset != that.offset)
+            return false;
         else if (value != null ? !value.equals(that.value) : that.value != null) 
             return false;
 
@@ -125,6 +149,7 @@ public final class ProducerRecord<K, V> {
     public int hashCode() {
         int result = topic != null ? topic.hashCode() : 0;
         result = 31 * result + (partition != null ? partition.hashCode() : 0);
+        result = 31 * result + (int) offset;
         result = 31 * result + (key != null ? key.hashCode() : 0);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         return result;
