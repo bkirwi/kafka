@@ -24,7 +24,7 @@ import junit.framework.Assert._
 import org.scalatest.junit.JUnitSuite
 import org.junit.{After, Before, Test}
 import kafka.message._
-import kafka.common.{MessageSizeTooLargeException, OffsetOutOfRangeException, MessageSetSizeTooLargeException}
+import kafka.common.{ExpectedOffsetMismatchException, MessageSizeTooLargeException, OffsetOutOfRangeException, MessageSetSizeTooLargeException}
 import kafka.utils._
 import kafka.server.KafkaConfig
 
@@ -151,6 +151,42 @@ class LogTest extends JUnitSuite {
     createEmptyLogs(logDir, 0)
     val log = new Log(logDir, logConfig, recoveryPoint = 0L, time.scheduler, time = time)
     log.append(TestUtils.singleMessageSet("test".getBytes))
+  }
+
+  /**
+   * Test that appending handles expected / mismatched offsets correctly.
+   */
+  @Test
+  def testAppendMismatchedOffsets() {
+
+    val logProps = new Properties()
+    logProps.put(LogConfig.CheckExpectedOffsetsProp, true: java.lang.Boolean)
+
+    // create a log
+    val log = new Log(logDir,
+      LogConfig(logProps),
+      recoveryPoint = 0L,
+      scheduler = time.scheduler,
+      time = time)
+
+    // append with no expected offset should succeed
+    val first = new ByteBufferMessageSet(NoCompressionCodec, new Message("test0".getBytes()))
+
+    log.append(first)
+
+    // append with matching expected offset should succeed
+    val second = new ByteBufferMessageSet(NoCompressionCodec, new AtomicLong(1), new Message("test1".getBytes()))
+
+    log.append(second)
+
+    // append with mismatching expected offset should complain
+    try {
+      val third = new ByteBufferMessageSet(NoCompressionCodec, new AtomicLong(7L), new Message("test2".getBytes()))
+      log.append(third)
+      fail("Appending a mismatched offset ought to fail!")
+    } catch {
+      case _: ExpectedOffsetMismatchException => {}
+    }
   }
 
   /**
