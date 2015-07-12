@@ -20,6 +20,7 @@ package kafka.message
 import java.nio._
 import java.util.concurrent.atomic.AtomicLong
 import junit.framework.Assert._
+import kafka.common.ExpectedOffsetMismatchException
 import org.junit.Test
 import kafka.utils.TestUtils
 
@@ -154,6 +155,58 @@ class ByteBufferMessageSetTest extends BaseMessageSetTestCases {
     checkOffsets(compressedMessages.validateMessagesAndAssignOffsets(new AtomicLong(offset), DefaultCompressionCodec, DefaultCompressionCodec), offset)
   }
   
+  @Test
+  def testOffsetAssignmentWithExpectedValues(): Unit = {
+
+    // test without expected offsets
+    {
+      val messages = new ByteBufferMessageSet(NoCompressionCodec, new Message("test0".getBytes))
+
+      val validated = messages.validateMessagesAndAssignOffsets(
+        new AtomicLong(0L),
+        sourceCodec = NoCompressionCodec,
+        targetCodec = NoCompressionCodec,
+        checkExpectedOffsets = true
+      )
+
+      checkOffsets(validated, 0)
+    }
+
+    // test with expected offsets that start at 0
+    {
+      val messages = new ByteBufferMessageSet(NoCompressionCodec, new AtomicLong(0), new Message("test0".getBytes))
+
+      val validated = messages.validateMessagesAndAssignOffsets(
+        new AtomicLong(0L),
+        sourceCodec = NoCompressionCodec,
+        targetCodec = NoCompressionCodec,
+        checkExpectedOffsets = true
+      )
+
+      checkOffsets(validated, 0)
+    }
+
+    // test with expected offsets that don't match
+    {
+      val messages = new ByteBufferMessageSet(NoCompressionCodec, new AtomicLong(7), new Message("test0".getBytes))
+
+      try {
+        messages.validateMessagesAndAssignOffsets(
+          new AtomicLong(0L),
+          sourceCodec = NoCompressionCodec,
+          targetCodec = NoCompressionCodec,
+          checkExpectedOffsets = true
+        )
+        fail("Validation should fail when offsets don't match!")
+      } catch {
+        case _: ExpectedOffsetMismatchException => {}
+      }
+    }
+
+
+
+  }
+
   /* check that offsets are assigned based on byte offset from the given base offset */
   def checkOffsets(messages: ByteBufferMessageSet, baseOffset: Long) {
     var offset = baseOffset

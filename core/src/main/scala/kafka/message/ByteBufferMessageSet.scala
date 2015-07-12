@@ -18,7 +18,7 @@
 package kafka.message
 
 import kafka.utils.{IteratorTemplate, Logging}
-import kafka.common.KafkaException
+import kafka.common.{ExpectedOffsetMismatchException, KafkaException}
 
 import java.nio.ByteBuffer
 import java.nio.channels._
@@ -232,14 +232,19 @@ class ByteBufferMessageSet(val buffer: ByteBuffer) extends MessageSet with Loggi
   private[kafka] def validateMessagesAndAssignOffsets(offsetCounter: AtomicLong,
                                                       sourceCodec: CompressionCodec,
                                                       targetCodec: CompressionCodec,
-                                                      compactedTopic: Boolean = false): ByteBufferMessageSet = {
+                                                      compactedTopic: Boolean = false,
+                                                      checkExpectedOffsets: Boolean = false): ByteBufferMessageSet = {
     if(sourceCodec == NoCompressionCodec && targetCodec == NoCompressionCodec) {
       // do in-place validation and offset assignment
       var messagePosition = 0
       buffer.mark()
       while(messagePosition < sizeInBytes - MessageSet.LogOverhead) {
+        val expectedOffset = buffer.getLong(messagePosition)
+        val assignedOffset = offsetCounter.getAndIncrement()
+        if (checkExpectedOffsets && expectedOffset != -1 && expectedOffset != assignedOffset)
+          throw new ExpectedOffsetMismatchException("Expected offset " + expectedOffset + " did not match assigned offset " + assignedOffset)
         buffer.position(messagePosition)
-        buffer.putLong(offsetCounter.getAndIncrement())
+        buffer.putLong(assignedOffset)
         val messageSize = buffer.getInt()
         val positionAfterKeySize = buffer.position + Message.KeySizeOffset + Message.KeySizeLength
         if (compactedTopic && positionAfterKeySize < sizeInBytes) {
@@ -255,12 +260,18 @@ class ByteBufferMessageSet(val buffer: ByteBuffer) extends MessageSet with Loggi
       buffer.reset()
       this
     } else {
+      var assignedOffset = offsetCounter.get()
       // We need to deep-iterate over the message-set if any of these are true:
       // (i) messages are compressed
       // (ii) the topic is configured with a target compression codec so we need to recompress regardless of original codec
       val messages = this.internalIterator(isShallow = false).map(messageAndOffset => {
         if (compactedTopic && !messageAndOffset.message.hasKey)
           throw new InvalidMessageException("Compacted topic cannot accept message without key.")
+
+        if (checkExpectedOffsets && messageAndOffset.offset != -1 && messageAndOffset.offset != assignedOffset)
+          throw new ExpectedOffsetMismatchException("Expected offset " + messageAndOffset.offset + " did not match assigned offset " + assignedOffset)
+
+        assignedOffset += 1
 
         messageAndOffset.message
       })
