@@ -57,11 +57,11 @@ public final class RecordBatch {
      * 
      * @return The RecordSend corresponding to this record or null if there isn't sufficient room.
      */
-    public FutureRecordMetadata tryAppend(byte[] key, byte[] value, Callback callback) {
+    public FutureRecordMetadata tryAppend(long offset, byte[] key, byte[] value, Callback callback) {
         if (!this.records.hasRoomFor(key, value)) {
             return null;
         } else {
-            this.records.append(-1L, key, value);
+            this.records.append(offset, key, value);
             this.maxRecordSize = Math.max(this.maxRecordSize, Record.recordSize(key, value));
             FutureRecordMetadata future = new FutureRecordMetadata(this.produceFuture, this.recordCount);
             if (callback != null)

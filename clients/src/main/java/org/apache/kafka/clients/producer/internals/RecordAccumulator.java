@@ -154,7 +154,7 @@ public final class RecordAccumulator {
      * @param value The value for the record
      * @param callback The user-supplied callback to execute when the request is complete
      */
-    public RecordAppendResult append(TopicPartition tp, byte[] key, byte[] value, Callback callback) throws InterruptedException {
+    public RecordAppendResult append(TopicPartition tp, long offset, byte[] key, byte[] value, Callback callback) throws InterruptedException {
         // We keep track of the number of appending thread to make sure we do not miss batches in
         // abortIncompleteBatches().
         appendsInProgress.incrementAndGet();
@@ -166,7 +166,7 @@ public final class RecordAccumulator {
             synchronized (dq) {
                 RecordBatch last = dq.peekLast();
                 if (last != null) {
-                    FutureRecordMetadata future = last.tryAppend(key, value, callback);
+                    FutureRecordMetadata future = last.tryAppend(offset, key, value, callback);
                     if (future != null)
                         return new RecordAppendResult(future, dq.size() > 1 || last.records.isFull(), false);
                 }
@@ -182,7 +182,7 @@ public final class RecordAccumulator {
                     throw new IllegalStateException("Cannot send after the producer is closed.");
                 RecordBatch last = dq.peekLast();
                 if (last != null) {
-                    FutureRecordMetadata future = last.tryAppend(key, value, callback);
+                    FutureRecordMetadata future = last.tryAppend(offset, key, value, callback);
                     if (future != null) {
                         // Somebody else found us a batch, return the one we waited for! Hopefully this doesn't happen often...
                         free.deallocate(buffer);
@@ -191,7 +191,7 @@ public final class RecordAccumulator {
                 }
                 MemoryRecords records = MemoryRecords.emptyRecords(buffer, compression, this.batchSize);
                 RecordBatch batch = new RecordBatch(tp, records, time.milliseconds());
-                FutureRecordMetadata future = Utils.notNull(batch.tryAppend(key, value, callback));
+                FutureRecordMetadata future = Utils.notNull(batch.tryAppend(offset, key, value, callback));
 
                 dq.addLast(batch);
                 incomplete.add(batch);
